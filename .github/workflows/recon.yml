@@ -7,13 +7,13 @@ jobs:
   Aggressive-Scanner:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Deep Checkout (Full History & Submodules)
+      - name: "📥 Deep Checkout (Full History & Submodules)"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive # يجبر السيرفر على سحب أي مجلدات KernelSU مخفية
+          submodules: recursive
 
-      - name: 🔎 Phase 1: Deep Submodule & Injection Scan (KernelSU)
+      - name: "🔎 Phase 1: Deep Submodule & Injection Scan (KernelSU)"
         run: |
           echo "========================================================="
           echo "[*] INITIATING DEEP SCAN FOR KERNELSU SIGNATURES..."
@@ -28,7 +28,7 @@ jobs:
           echo -e "\n>>> 3. Aggressive File System Search for KSU traces..."
           find . -type d -iname "*kernelsu*" || echo "[-] No directories named KernelSU found in the tree."
 
-      - name: 🛡️ Phase 2: SuSFS Advanced Signature Detection
+      - name: "🛡️ Phase 2: SuSFS Advanced Signature Detection"
         run: |
           echo "========================================================="
           echo "[*] INITIATING CORE KERNEL SCAN FOR SUSFS CLOAKING..."
@@ -37,7 +37,7 @@ jobs:
           echo -e "\n>>> Scanning Core VFS (Virtual File System) and Includes for SuSFS hooks..."
           find fs/ include/ kernel/ drivers/ -type f -exec grep -Hni "susfs" {} + | head -n 25 || echo "[-] No SuSFS implementation signatures detected."
 
-      - name: 🧠 Phase 3: Defconfig Brain Extraction (Vayu)
+      - name: "🧠 Phase 3: Defconfig Brain Extraction (Vayu)"
         run: |
           echo "========================================================="
           echo "[*] EXTRACTING TARGET CONFIGURATIONS (VAYU_DEFCONFIG)..."
@@ -52,7 +52,7 @@ jobs:
             echo "[!] CRITICAL: $CONFIG_FILE not found!"
           fi
 
-      - name: 📦 Phase 4: Build Logic Analysis
+      - name: "📦 Phase 4: Build Logic Analysis"
         run: |
           echo "========================================================="
           echo "[*] ANALYZING PRIMARY BUILD SCRIPT (build.sh)..."
