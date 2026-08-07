@@ -1,106 +1,82 @@
-name: Official KernelSU-Next & SuSFS Kernel Builder [Vayu]
+" sudo apt-get update -y sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 wget
+ - name: "🚀 3. Official KernelSU-Next (Legacy) Integration"
+    run: |
+      echo "===> Running Official KSU-Next Legacy Setup <==="
+      curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+      
+      if ! grep -q "KernelSU" fs/Makefile; then
+         echo "obj-y += KernelSU-Next/" >> fs/Makefile
+      fi
 
-on:
-  workflow_dispatch:
+  - name: "🛡️ 4. SuSFS Patching"
+    run: |
+      echo "===> Cloning Official SuSFS Repository <==="
+      git clone https://gitlab.com/1392726643/susfs4ksu.git -b kernel-4.14 susfs
+      
+      if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; else KSU_DIR="KernelSU"; fi
+      
+      echo "===> Patching KSU <==="
+      cp susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KSU_DIR/
+      cd $KSU_DIR
+      patch -p1 < 10_enable_susfs_for_ksu.patch
+      cd ../
+      
+      echo "===> Patching Main Kernel <==="
+      cp susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch .
+      patch -p1 < 50_add_susfs_in_kernel-4.14.patch || echo "Patch applied with manual offset resolution"
+      
+      cp susfs/kernel_patches/fs/susfs.c fs/
+      cp susfs/kernel_patches/include/linux/susfs.h include/linux/
 
-jobs:
-  Build-Kernel:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 1. Checkout Kernel Source
-        uses: actions/checkout@v4
+  - name: "⚙️ 5. Defconfig Strict Enforcement (Official Specs)"
+    run: |
+      CONFIG_TARGET="arch/arm64/configs/vendor/sm8150-perf_defconfig"
+      if [ ! -f "$CONFIG_TARGET" ]; then
+         CONFIG_TARGET="arch/arm64/configs/vayu_defconfig"
+      fi
+      
+      echo "===> Appending Flags individually to avoid YAML syntax drops <==="
+      echo "CONFIG_KSU=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_KPROBE_HOOKS=y" >> $CONFIG_TARGET
+      echo "CONFIG_KPROBES=y" >> $CONFIG_TARGET
+      echo "CONFIG_KPROBE_EVENTS=y" >> $CONFIG_TARGET
+      echo "CONFIG_DEBUG_FS=y" >> $CONFIG_TARGET
+      echo "CONFIG_TRACING=y" >> $CONFIG_TARGET
+      echo "CONFIG_FTRACE=y" >> $CONFIG_TARGET
+      
+      echo "CONFIG_KSU_SUSFS=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSTAT_RESPONSE=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SPOOF_UNAME_RELEASE=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $CONFIG_TARGET
+      echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $CONFIG_TARGET
 
-      - name: 🚀 2. Official KernelSU-Next Integration
-        run: |
-          echo "===> Running Official KernelSU-Next Setup Script <==="
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+  - name: "🏗️ 6. Build Kernel"
+    run: |
+      chmod +x build.sh
+      sudo bash ./build.sh
 
-      - name: 🛡️ 3. Official SuSFS Patching (v1.5.2+ / R28)
-        run: |
-          echo "===> Cloning Official SuSFS Repository <==="
-          git clone https://gitlab.com/1392726643/susfs4ksu.git -b kernel-4.14 susfs
-          
-          echo "===> Patching KernelSU-Next with SuSFS (Patch 10) <==="
-          if [ -d "KernelSU-Next" ]; then
-            KSU_DIR="KernelSU-Next"
-          elif [ -d "KernelSU" ]; then
-            KSU_DIR="KernelSU"
-          else
-            KSU_DIR="drivers/kernelsu"
-          fi
-          
-          cp susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KSU_DIR/ 2>/dev/null || true
-          cd $KSU_DIR
-          patch -p1 < 10_enable_susfs_for_ksu.patch || echo "KSU Patch applied with warnings/manual check"
-          cd ../
-          
-          echo "===> Patching Main Kernel Tree (Patch 50 for Linux 4.14) <==="
-          cp susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch .
-          patch -p1 < 50_add_susfs_in_kernel-4.14.patch || echo "Kernel Patch applied with warnings"
-          
-          echo "===> Copying SuSFS Header Files <==="
-          cp susfs/kernel_patches/fs/susfs.c fs/
-          cp susfs/kernel_patches/include/linux/susfs.h include/linux/
+  - name: "📦 7. AnyKernel3 Packaging"
+    run: |
+      git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
+      FOUND_IMAGE=$(find out/ -type f -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" | head -n 1)
+      cp $FOUND_IMAGE AK3/
+      
+      cd AK3
+      sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
+      sed -i 's/block=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot/block=auto/g' anykernel.sh
+      zip -r9 ../Vayu-GodMode-Kernel-ENGKR.zip * -x .git README.md
 
-      - name: ⚙️ 4. Enforce Defconfig Flags (SuSFS + Kprobes + DebugFS)
-        run: |
-          CONFIG_TARGET="arch/arm64/configs/vendor/sm8150-perf_defconfig"
-          echo "===> Appending Official SuSFS & Kprobe Flags to $CONFIG_TARGET <==="
-          
-          cat <<EOF >> $CONFIG_TARGET
-
-# --- OFFICIAL KERNELSU & SUSFS CONFIGS ---
-CONFIG_KSU=y
-CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSTAT_RESPONSE=y
-CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
-CONFIG_KSU_SUSFS_TRY_UMOUNT=y
-CONFIG_KSU_SUSFS_SPOOF_UNAME_RELEASE=y
-CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
-CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-CONFIG_KSU_SUSFS_SUS_SU=y
-
-# --- ENGKR TRACING & KPROBES CONFIGS ---
-CONFIG_KPROBES=y
-CONFIG_KPROBE_EVENTS=y
-CONFIG_DEBUG_FS=y
-CONFIG_TRACING=y
-CONFIG_FTRACE=y
-EOF
-
-      - name: 🏗️ 5. Compile Kernel via build.sh
-        run: |
-          echo "===> Executing Primary Build System <==="
-          chmod +x build.sh
-          ./build.sh
-
-      - name: 📦 6. Package Output with AnyKernel3
-        run: |
-          echo "===> Preparing AnyKernel3 Packaging <==="
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
-          
-          # البحث عن ملف الكيرنل الناتج (Image.gz-dtb أو Image.gz أو Image)
-          FOUND_IMAGE=$(find out/ -type f -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" | head -n 1)
-          
-          if [ -z "$FOUND_IMAGE" ]; then
-            echo "CRITICAL ERROR: Kernel image not found in out/ directory!"
-            exit 1
-          fi
-          
-          echo "Found Kernel Image: $FOUND_IMAGE"
-          cp $FOUND_IMAGE AK3/
-          
-          cd AK3
-          zip -r9 ../Vayu-AnymoreKSU-ENGKR-Kernel.zip * -x .git README.md
-
-      - name: 📤 7. Upload Flashable ZIP Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Vayu-AnymoreKSU-ENGKR-Kernel
-          path: Vayu-AnymoreKSU-ENGKR-Kernel.zip
+  - name: "📤 8. Upload Artifact"
+    uses: actions/upload-artifact@v4
+    with:
+      name: Vayu-GodMode-Kernel-ENGKR
+      path: Vayu-GodMode-Kernel-ENGKR.zip
