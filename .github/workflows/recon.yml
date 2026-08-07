@@ -1,0 +1,39 @@
+name: ENGKR Kernel Reconnaissance 🕵️‍♂️
+
+on:
+  workflow_dispatch: # هذا السطر يسمح لك بتشغيل الفحص يدوياً بضغطة زر
+
+jobs:
+  Kernel-Scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 سحب كود النواة
+        uses: actions/checkout@v4
+
+      - name: 🔍 فحص وجود KernelSU
+        run: |
+          echo "=== حالة KernelSU ==="
+          if [ -d "KernelSU" ] || [ -d "fs/kernelsu" ] || [ -d "drivers/kernelsu" ]; then 
+            echo "[✅] تم العثور على مجلد KernelSU!"
+          else 
+            echo "[❌] مجلد KernelSU غير موجود."
+          fi
+          echo "--- البحث في Makefile ---"
+          grep -rn -i "kernelsu" fs/Makefile || echo "لم يتم العثور على استدعاء له في fs/Makefile"
+
+      - name: 🛡️ فحص وجود SuSFS (درع التخفي)
+        run: |
+          echo "=== حالة SuSFS ==="
+          grep -rn -i "susfs" fs/ include/linux/ | head -n 15 || echo "[❌] لم يتم العثور على بصمات SuSFS."
+
+      - name: 📱 البحث عن عقل Poco X3 Pro (Defconfig)
+        run: |
+          echo "=== ملفات إعدادات الهاتف (Vayu/Bhima) ==="
+          find arch/arm64/configs -type f -iname "*vayu*" -o -iname "*bhima*" || echo "[❌] لم يتم العثور على إعدادات الهاتف!"
+
+      - name: ⚙️ فحص جاهزية البناء الآلي (Build Scripts)
+        run: |
+          echo "=== ملفات البناء الجاهزة ==="
+          ls -al .github/workflows/ 2>/dev/null || echo "لا يوجد مجلد workflows"
+          echo "--- نصوص البناء (Shell Scripts) ---"
+          find . -type f -name "*.sh" | grep -i "build" || echo "لا يوجد ملفات sh للبناء"
