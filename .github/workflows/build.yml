@@ -12,14 +12,14 @@ jobs:
         with:
           fetch-depth: 0
 
-- name: "🛠️ 2. Prepare Build Environment & Dependencies"
+      - name: "🛠️ 2. Prepare Build Environment & Dependencies"
         run: |
           sudo apt-get update -y
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 wget device-tree-compiler
+
       - name: "🚀 3. Official KernelSU-Next Integration"
         run: |
           echo "===> Running Official KSU-Next Setup <==="
-          # السكربت الرسمي سيدمج نفسه في مجلد drivers/ تلقائياً
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
 
       - name: "🛡️ 4. SuSFS Patching (Smart Integration)"
@@ -27,7 +27,6 @@ jobs:
           echo "===> Cloning Official SuSFS Repository <==="
           git clone https://gitlab.com/1392726643/susfs4ksu.git -b kernel-4.14 susfs
           
-          # السكربت يحمل السورس في هذا المجلد بالأساس
           KSU_DIR="KernelSU-Next"
           
           echo "===> Patching KSU <==="
@@ -48,7 +47,7 @@ jobs:
           echo "===> Injecting SuSFS Headers <==="
           cp susfs/kernel_patches/fs/susfs.c fs/
           cp susfs/kernel_patches/include/linux/susfs.h include/linux/
-          
+
       - name: "⚙️ 5. Defconfig Strict Enforcement (Official Specs)"
         run: |
           CONFIG_TARGET="arch/arm64/configs/vendor/sm8150-perf_defconfig"
