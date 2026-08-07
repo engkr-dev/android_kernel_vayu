@@ -17,17 +17,17 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 wget
 
-      - name: "🚀 3. Official KernelSU-Next Integration & Linking"
+      - name: "🚀 3. Official KernelSU-Next Integration & Architecture Fix"
         run: |
           echo "===> Running Official KSU-Next Setup <==="
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
-          echo "===> Fixing Directory Architecture for Kbuild <==="
-          # إنشاء اختصار (Symlink) لربط المجلد الخارجي بمسار البناء الداخلي
+          echo "===> Moving KSU into fs/ to fix out-of-tree build (O=out) <==="
+          # النقل الفيزيائي بدلاً من الاختصارات ليتعرف عليه الكومبايلر بسلاسة
           if [ -d "KernelSU-Next" ]; then
-             ln -sf ../KernelSU-Next fs/KernelSU-Next
+             mv KernelSU-Next fs/
           elif [ -d "KernelSU" ]; then
-             ln -sf ../KernelSU fs/KernelSU-Next
+             mv KernelSU fs/KernelSU-Next
           fi
           
           if ! grep -q "KernelSU-Next" fs/Makefile; then
@@ -39,22 +39,19 @@ jobs:
           echo "===> Cloning Official SuSFS Repository <==="
           git clone https://gitlab.com/1392726643/susfs4ksu.git -b kernel-4.14 susfs
           
-          if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; else KSU_DIR="KernelSU"; fi
+          # توجيه الباتشات إلى المسار الفيزيائي الجديد
+          KSU_DIR="fs/KernelSU-Next"
           
           echo "===> Patching KSU <==="
-          # فحص ذكي: لو المطور وضع باتش مخصص لـ KernelSU-Next سنستخدمه، وإلا سنستخدم القياسي
-          if [ -d "susfs/kernel_patches/KernelSU-Next" ] && [ "$KSU_DIR" = "KernelSU-Next" ]; then
-              echo "[+] Found KernelSU-Next specific patch!"
+          if [ -d "susfs/kernel_patches/KernelSU-Next" ]; then
               cp susfs/kernel_patches/KernelSU-Next/10_enable_susfs_for_ksu.patch $KSU_DIR/
           else
-              echo "[+] Using standard KernelSU patch..."
               cp susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KSU_DIR/
           fi
           
           cd $KSU_DIR
-          # استخدام --forward لتخطي أي تعديل تم تطبيقه مسبقاً وتفادي توقف البناء
           patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
-          cd ../
+          cd ../../
           
           echo "===> Patching Main Kernel <==="
           cp susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch .
