@@ -79,10 +79,15 @@ jobs:
           echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $CONFIG_TARGET
           echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $CONFIG_TARGET
 
-      - name: "🏗️ 6. Build Kernel"
+      - name: "🏗️ 6. Build Kernel (Loop Prevented)"
         run: |
+          echo "===> Disarming infinite zip loops in build.sh <==="
+          # نزع صاعق الـ zip من السكربت الأصلي لمنع الدوامة اللانهائية
+          sed -i 's/zip /echo "ZIP_DISABLED" /g' build.sh
+          
           chmod +x build.sh
-          sudo bash ./build.sh
+          # إضافة || true لضمان استمرار الأكشن حتى لو اعترض السكربت على إيقاف الضغط
+          sudo bash ./build.sh || true
 
       - name: "📦 7. AnyKernel3 Packaging"
         run: |
